@@ -1,0 +1,27 @@
+[package]
+name = "sarpine"
+version = "0.1.0"
+license = "MIT/Apache-2.0"
+homepage = "https://github.com/Devolutions/sarpine-rs"
+repository = "https://github.com/Devolutions/sarpine-rs"
+keywords = ["srp", "authentication", "protocol"]
+description = "Secure Remote Password (SRP) extensible authentication protocol"
+authors = ["Marc-André Moreau <marcandre.moreau@gmail.com>"]
+
+[lib]
+name = "sarpine"
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+cfg-if = "0.1"
+rand = "0.5.0"
+hmac = "0.6"
+sha2 = "0.7"
+srp = "0.4.0"
+
+num-bigint = { version = "0.1", default_features = false }
+num-traits = { version = "0.1", default_features = false }
+num-integer = { version = "0.1", default_features = false }
+
+byteorder = "1.2"
+libc = "0.2.40"
