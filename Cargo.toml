@@ -2,3 +2,11 @@
 members = [
     "sarpine"
 ]
+
+[dependencies]
+hmac = "0.6"
+rand = { version = "0.7.0", features = ["wasm-bindgen"] }
+sha2 = "0.8.0"
+sha1 = "0.6.0"
+srp = { git = "https://github.com/Devolutions/PAKEs", branch = "rfc5054_compat" }
+console_error_panic_hook = "0.1.6"
