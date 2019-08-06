@@ -1,17 +1,24 @@
 use std::io::{Read, Write, Error};
-use srp_message::Message;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
+use super::*;
+
 pub struct SrpInitiate {
-    prime_size: u16,
-    hash_type: u16,
-    reserved: u32,
+    pub prime_size: u16,
+    pub hash_type: u16,
+    pub reserved: u32,
     pub username: (u16, Vec<u8>),
     pub a_pub: (u16, Vec<u8>)
 }
 
+impl SrpInitiate {
+    pub fn size (&self) -> usize {
+        return (2 + 2 + 4 + 2 + self.username.0 + 2 + self.a_pub.0) as usize
+    }
+}
+
 impl Message for SrpInitiate {
-    fn read_from<R: Read>(reader: &mut R) -> Result<Self, Error>
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self, SrpErr>
         where
             Self: Sized,
     {
@@ -36,7 +43,7 @@ impl Message for SrpInitiate {
         })
     }
 
-    fn write_to<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<(), SrpErr> {
         writer.write_u16::<LittleEndian>(self.prime_size)?;
         writer.write_u16::<LittleEndian>(self.hash_type)?;
         writer.write_u32::<LittleEndian>(self.reserved)?;

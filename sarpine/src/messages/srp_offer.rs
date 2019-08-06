@@ -1,13 +1,19 @@
-pub struct SrpOfferMsg<'a> {
+use std::io::{Read, Write, Error};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+
+use messages::srp_message::Message;
+use messages::SrpErr;
+
+pub struct SrpOffer {
     prime_size: u16,
     hash_type: u16,
     reserved: u32,
-    s: (u16, Vec<u8>),
-    B: (u16, Vec<u8>)
+    pub s: (u16, Vec<u8>),
+    pub B: (u16, Vec<u8>)
 }
 
-impl Message for SrdOffer {
-    fn read_from<R: Read>(reader: &mut R) -> Result<Self>
+impl Message for SrpOffer {
+    fn read_from<R: Read>(reader: &mut R) -> Result<Self, SrpErr>
         where
             Self: Sized,
     {
@@ -24,7 +30,7 @@ impl Message for SrdOffer {
         let mut B_data = vec![0u8; B_size as usize];
         reader.read_exact(&mut B_data)?;
 
-        Ok(SrpOfferMsg {
+        Ok(SrpOffer {
             prime_size,
             hash_type,
             reserved,
@@ -33,7 +39,7 @@ impl Message for SrdOffer {
         })
     }
 
-    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<(), SrpErr> {
         writer.write_u16::<LittleEndian>(self.prime_size)?;
         writer.write_u16::<LittleEndian>(self.hash_type)?;
         writer.write_u32::<LittleEndian>(self.reserved)?;
