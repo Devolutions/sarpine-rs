@@ -12,8 +12,8 @@ pub trait Message {
 pub enum SrpMessage {
     Initiate(SrpHeader, SrpInitiate),
     Offer(SrpHeader, SrpOffer),
-    //Accept(SrpHeader, SrpAccept),
-    //Confirm(SrpHeader, SrpConfirm),
+    Accept(SrpHeader, SrpAccept),
+    Confirm(SrpHeader, SrpConfirm),
 }
 
 impl SrpMessage {
@@ -21,8 +21,8 @@ impl SrpMessage {
         match self {
             SrpMessage::Initiate(_, _) => 1,
             SrpMessage::Offer(_, _) => 2,
-            //SrpMessage::Accept(hdr, _) => 3,
-            //SrpMessage::Confirm(hdr, _) => 4,
+            SrpMessage::Accept(hdr, _) => 3,
+            SrpMessage::Confirm(hdr, _) => 4,
         }
     }
 
@@ -30,8 +30,8 @@ impl SrpMessage {
         match self {
             SrpMessage::Initiate(hdr, _) => hdr.has_mac(),
             SrpMessage::Offer(hdr, _) => hdr.has_mac(),
-            //SrpMessage::Accept(hdr, _) => hdr.has_mac(),
-            //SrpMessage::Confirm(hdr, _) => hdr.has_mac(),
+            SrpMessage::Accept(hdr, _) => hdr.has_mac(),
+            SrpMessage::Confirm(hdr, _) => hdr.has_mac(),
         }
     }
 
@@ -39,8 +39,8 @@ impl SrpMessage {
         match self {
             SrpMessage::Initiate(hdr, _) => hdr.msg_type(),
             SrpMessage::Offer(hdr, _) => hdr.msg_type(),
-            //SrpMessage::Accept(hdr, _) => hdr.msg_type(),
-            //SrpMessage::Confirm(hdr, _) => hdr.msg_type(),
+            SrpMessage::Accept(hdr, _) => hdr.msg_type(),
+            SrpMessage::Confirm(hdr, _) => hdr.msg_type(),
         }
     }
 }
@@ -60,14 +60,14 @@ impl Message for SrpMessage {
                 let offer = SrpOffer::read_from(&mut reader)?;
                 Ok(SrpMessage::Offer(header, offer))        //.validate()?)  //TODO impl validate()
             }
-            /*srd_msg_id::SRD_ACCEPT_MSG_ID => {
-                let accept = SrdAccept::read_from(&mut reader)?;
-                Ok(SrpMessage::Accept(header, accept).validate()?)
+            SRD_ACCEPT_MSG_ID => {
+                let accept = SrpAccept::read_from(&mut reader)?;
+                Ok(SrpMessage::Accept(header, accept))      //.validate()?)  //TODO impl validate()
             }
-            srd_msg_id::SRD_CONFIRM_MSG_ID => {
-                let confirm = SrdConfirm::read_from(&mut reader)?;
-                Ok(SrpMessage::Confirm(header, confirm).validate()?)
-            }*/
+            SRP_CONFIRM_MSG_ID => {
+                let confirm = SrpConfirm::read_from(&mut reader)?;
+                Ok(SrpMessage::Confirm(header, confirm))     //.validate()?)  //TODO impl validate()
+            }
             _ => Err(SrpErr::UnknownMsgType),
         }
     }
@@ -84,7 +84,7 @@ impl Message for SrpMessage {
                 offer.write_to(&mut writer)?;
                 Ok(())
             }
-            /*SrpMessage::Accept(hdr, accept) => {
+            SrpMessage::Accept(hdr, accept) => {
                 hdr.write_to(&mut writer)?;
                 accept.write_to(&mut writer)?;
                 Ok(())
@@ -93,7 +93,7 @@ impl Message for SrpMessage {
                 hdr.write_to(&mut writer)?;
                 confirm.write_to(&mut writer)?;
                 Ok(())
-            }*/
+            }
         }
     }
 }

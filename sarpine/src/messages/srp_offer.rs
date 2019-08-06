@@ -5,11 +5,17 @@ use messages::srp_message::Message;
 use messages::SrpErr;
 
 pub struct SrpOffer {
-    prime_size: u16,
-    hash_type: u16,
-    reserved: u32,
+    pub prime_size: u16,
+    pub hash_type: u16,
+    pub reserved: u32,
     pub s: (u16, Vec<u8>),
     pub B: (u16, Vec<u8>)
+}
+
+impl SrpOffer {
+    pub fn size (&self) -> usize {
+        return (2 + 2 + 4 + 2 + self.s.0 + 2 + self.B.0) as usize
+    }
 }
 
 impl Message for SrpOffer {

@@ -36,14 +36,6 @@ impl SrpHeader {
         self.signature
     }
 
-    /*pub fn seq_num(&self) -> u8 {
-        self.seq_num
-    }
-
-    pub fn has_cbt(&self) -> bool {
-        self.flags & SRD_FLAG_CBT != 0
-    }*/
-
     pub fn has_mac(&self) -> bool {
         self.flags & SRP_FLAG_MAC != 0
     }   //FIXME SRP_FLAG_MAC

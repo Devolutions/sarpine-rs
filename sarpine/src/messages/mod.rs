@@ -14,8 +14,8 @@ pub mod wayknow_const {
 mod srp_header;
 mod srp_initiate;
 mod srp_offer;
-//mod srp_accept;       TODO
-//mod srp_confirm;      TODO
+mod srp_accept;
+mod srp_confirm;
 mod srp_errors;
 mod srp_message;
 
@@ -24,3 +24,5 @@ pub use self::srp_errors::SrpErr;
 pub use self::srp_initiate::SrpInitiate;
 pub use self::srp_message::{SrpMessage, Message};
 pub use self::srp_offer::SrpOffer;
+pub use self::srp_accept::SrpAccept;
+pub use self::srp_confirm::SrpConfirm;
