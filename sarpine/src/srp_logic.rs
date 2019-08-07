@@ -24,7 +24,7 @@ use std::io::Error;
 use srp::server::{UserRecord, SrpServer};
 
 // TODO finish adding relevant fields
-pub struct Srp {
+pub struct Srp<'a> {
     username: String,
     password: String,
     a: Vec<u8>,
@@ -33,34 +33,36 @@ pub struct Srp {
     server: Option<SrpServer<Sha256>>,
     state: u8,
     salt: Vec<u8>,
+    client: Option<SrpClient<'a, Sha256>>,
 
     is_server: bool
 }
 
-impl Srp {
-    fn new() -> Self {
+impl Srp<'_> {
+    pub fn new(is_server: bool, pwd: &str) -> Self {
         Srp{
             username: "wayk".to_string(),
-            password: String::new(),
+            password: pwd.to_owned(),
             a: Vec::new(),
             mac_buf: Vec::new(),
             verifier: None,
             server: None,
-
+            client: None,
             state: 0,
             salt: Vec::new(),
-            is_server: false
+            is_server
         }
     }
 
     fn read_msg(&mut self, buffer: &[u8]) -> Result<SrpMessage, SrpErr> {
+        self.state += 1;
+
         let mut reader = std::io::Cursor::new(buffer);
         let msg = SrpMessage::read_from(&mut reader)?;
 
         if msg.seq_num() != self.state {
             return Err(SrpErr::BadSequence);
         }
-        self.state += 1;
 
         // Keep the message to calculate future mac value
         self.mac_buf.push(Vec::from(buffer));
@@ -81,14 +83,14 @@ impl Srp {
         Ok(msg)
     }
 
-
-    fn authenticate(&mut self, in_data: &[u8], out_data: &mut Vec<u8>) -> Result<(), SrpErr> {
+    pub fn authenticate(&mut self, in_data: &[u8], out_data: &mut Vec<u8>) -> Result<(), SrpErr> {
         if !self.is_server {
             match self.state {
                 // client-to-server -> SrpInitiate
                 0 => self.client_authenticate_0(in_data, out_data)?,
                 // client-to-server -> SrpAccept
                 1 => self.client_authenticate_1(in_data, out_data)?,
+                3 => self.client_authenticate_2(in_data, out_data)?,
                 _ => return Err(SrpErr::BadSequence)
             }
         } else {
@@ -96,7 +98,7 @@ impl Srp {
                 // server-to-client -> SrpOffer
                 0 => self.server_authenticate_0(in_data, out_data)?,
                 // server-to-client -> SrpConfirm
-                1 => self.server_authenticate_1(in_data, out_data)?,
+                2 => self.server_authenticate_1(in_data, out_data)?,
                 _ => return Err(SrpErr::BadSequence)
             }
         }
@@ -114,6 +116,7 @@ impl Srp {
         self.a = a.to_vec();
         let client = SrpClient::<Sha256>::new(&a, &G_2048);
         let a_pub = client.get_a_pub();
+        self.client = Some(client);
 
         let payload = SrpInitiate {
             prime_size: 256,    //2048 bits
@@ -143,8 +146,8 @@ impl Srp {
                 let password = self.password.clone();
                 let a = self.a.clone();
 
-                let client = SrpClient::<Sha256>::new(&a, &G_2048);
-                let a_pub = client.get_a_pub();
+                let client = self.client.take().unwrap();       //SrpClient::<Sha256>::new(&a, &G_2048);
+                //let a_pub = client.get_a_pub();
 
                 let private_key = srp_private_key::<Sha256>(
                     username.as_bytes(),
@@ -186,6 +189,21 @@ impl Srp {
         Ok(())
     }
 
+    // client verifies server
+    fn client_authenticate_2(&mut self, in_data: &[u8], mut out_data: &mut Vec<u8>) -> Result<(), SrpErr> {
+        let input_msg = self.read_msg(in_data)?;
+        match input_msg {
+            SrpMessage::Confirm(_hdr, confirm) => {
+                let verifier = self.verifier.take().unwrap();
+                let user_key = verifier.verify_server(&confirm.HAMK.1).unwrap();
+            }
+            _ => {
+                return Err(SrpErr::BadSequence);
+            }
+        }
+        Ok(())
+    }
+
     // server-to-client -> SrpOffer
     fn server_authenticate_0(&mut self, in_data: &[u8], mut out_data: &mut Vec<u8>) -> Result<(), SrpErr>  {
         let input_msg = self.read_msg(in_data)?;
@@ -217,10 +235,10 @@ impl Srp {
                     rand
                 };
 
-                let a_pub = client.get_a_pub();
-                let server = SrpServer::<Sha256>::new(&user, &a_pub, &b, &G_2048).unwrap();
+                let server = SrpServer::<Sha256>::new(&user, &self.a, &b, &G_2048).unwrap();
 
                 let b_pub = server.get_b_pub();
+                self.server = Some(server);
 
                 let payload = SrpOffer {
                     prime_size: 256,    //2048 bits
@@ -255,7 +273,7 @@ impl Srp {
 
                 let payload = SrpConfirm {
                     HAMK: (HAMK.len() as u16, HAMK.to_vec()),
-                    mac: Vec::new()  //FIXME
+                    mac: vec![0u8;4]  //FIXME
                 };
                 let header = SrpHeader::new(SRP_CONFIRM_MSG_ID, false, payload.size());
 
@@ -274,6 +292,7 @@ impl Srp {
     }
 
     fn write_msg(&mut self, msg: &mut SrpMessage, out_buffer: &mut Vec<u8>) -> Result<(), SrpErr> {
+        self.state += 1;
         if msg.seq_num() != self.state {
             return Err(SrpErr::BadSequence);
         }
@@ -290,8 +309,6 @@ impl Srp {
         }*/
 
         msg.write_to(out_buffer)?;
-
-        self.state += 1;
 
         Ok(())
     }

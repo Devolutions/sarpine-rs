@@ -60,13 +60,13 @@ impl Message for SrpMessage {
                 let offer = SrpOffer::read_from(&mut reader)?;
                 Ok(SrpMessage::Offer(header, offer))        //.validate()?)  //TODO impl validate()
             }
-            SRD_ACCEPT_MSG_ID => {
+            SRP_ACCEPT_MSG_ID => {
                 let accept = SrpAccept::read_from(&mut reader)?;
                 Ok(SrpMessage::Accept(header, accept))      //.validate()?)  //TODO impl validate()
             }
             SRP_CONFIRM_MSG_ID => {
                 let confirm = SrpConfirm::read_from(&mut reader)?;
-                Ok(SrpMessage::Confirm(header, confirm))     //.validate()?)  //TODO impl validate()
+                Ok(SrpMessage::Confirm(header, confirm))     //.validate()?) //TODO impl validate()
             }
             _ => Err(SrpErr::UnknownMsgType),
         }

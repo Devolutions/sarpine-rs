@@ -24,8 +24,8 @@ impl Message for SrpConfirm {
         let mut hamk_data = vec![0u8; hamk_size as usize];
         reader.read_exact(&mut hamk_data)?;
 
-        let mut mac_size = 4;   //FIXME calculate mac size dynamically
-        let mut mac_data = vec![0u8; mac_size as usize];
+        let mut mac_size = 4usize;   //FIXME calculate mac size dynamically
+        let mut mac_data = vec![0u8; mac_size];
         reader.read_exact(&mut mac_data)?;
 
         Ok(SrpConfirm {
