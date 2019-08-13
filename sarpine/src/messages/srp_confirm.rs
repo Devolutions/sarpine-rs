@@ -13,6 +13,14 @@ impl SrpConfirm {
     pub fn size (&self) -> usize {
         return (2 + self.HAMK.0 + 2) as usize + self.mac.len()
     }
+
+    pub fn mac(&self) -> &[u8] {
+        &self.mac
+    }
+
+    pub fn set_mac(&mut self, mac: &[u8]) {
+        self.mac.clone_from_slice(mac);
+    }
 }
 
 impl Message for SrpConfirm {
@@ -24,7 +32,7 @@ impl Message for SrpConfirm {
         let mut hamk_data = vec![0u8; hamk_size as usize];
         reader.read_exact(&mut hamk_data)?;
 
-        let mut mac_size = 4usize;   //FIXME calculate mac size dynamically
+        let mut mac_size = 32usize;   //FIXME calculate mac size dynamically
         let mut mac_data = vec![0u8; mac_size];
         reader.read_exact(&mut mac_data)?;
 

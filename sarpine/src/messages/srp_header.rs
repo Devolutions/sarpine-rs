@@ -1,5 +1,5 @@
 use std::io::{Read, Write, Error};
-use byteorder::{WriteBytesExt, LittleEndian, ReadBytesExt};
+use byteorder::{WriteBytesExt, LittleEndian, ReadBytesExt, BigEndian};
 
 use messages::{
     wayknow_const::*,
@@ -66,6 +66,7 @@ impl Message for SrpHeader {
             Self: Sized,
     {
         let signature = reader.read_u32::<LittleEndian>()?;
+        //println!("signature: {:02x?} vs {:02x?}", signature, SRP_SIGNATURE);
         if signature != SRP_SIGNATURE {
             return Err(SrpErr::InvalidSignature);
         }

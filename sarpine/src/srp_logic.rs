@@ -18,12 +18,12 @@ use rand::{
     thread_rng
 };
 use hmac::{Hmac, Mac};
-
+use std::borrow::Borrow;
 use super::messages::*;
-use std::io::Error;
+use std::io::{Error, Write};
 use srp::server::{UserRecord, SrpServer};
+use srp_logic::SrpState::Success;
 
-// TODO finish adding relevant fields
 pub struct Srp<'a> {
     username: String,
     password: String,
@@ -31,11 +31,17 @@ pub struct Srp<'a> {
     mac_buf: Vec<Vec<u8>>,
     verifier: Option<SrpClientVerifier<Sha256>>,
     server: Option<SrpServer<Sha256>>,
+    client: Option<SrpClient<'a, Sha256>>,
     state: u8,
     salt: Vec<u8>,
-    client: Option<SrpClient<'a, Sha256>>,
+    is_server: bool,
+    priv_key: [u8;32]
+}
 
-    is_server: bool
+#[derive(Debug, PartialEq)]
+pub enum SrpState {
+    Continue,
+    Success
 }
 
 impl Srp<'_> {
@@ -50,7 +56,8 @@ impl Srp<'_> {
             client: None,
             state: 0,
             salt: Vec::new(),
-            is_server
+            is_server,
+            priv_key: [0u8;32]
         }
     }
 
@@ -64,33 +71,56 @@ impl Srp<'_> {
             return Err(SrpErr::BadSequence);
         }
 
-        // Keep the message to calculate future mac value
-        self.mac_buf.push(Vec::from(buffer));
-
-        // Verify mac value right now. We can't validate mac value for accept msg since we need information from
-        // the message to generate the integrety key. So only for this message type, it is verified later.
-        //TODO
-        /*if msg.has_mac() && msg.msg_type() != SRP_ACCEPT_MSG_ID {
-            self.validate_mac(&msg)?;
-        }*/
-
-        // If CBT flag is set, we have to use CBT
-        //TODO
-        /*if msg.has_cbt() && !self.use_cbt {
-            return Err(SrpErr::InvalidCert);
-        }*/
+        if msg.has_mac() {      // TODO "&& msg.msg_type() != srd_msg_id::SRD_ACCEPT_MSG_ID"?
+            // Keep the message without the MAC at the end (32 bytes)
+            let last_index = buffer.len() - 32; //FIXME modular len
+            self.mac_buf.push(buffer[0..last_index].to_vec());
+            self.validate_mac(&msg)?;//FIXME here should panic on 3d message
+        } else {
+            // Keep the message to calculate future MAC value
+            self.mac_buf.push(Vec::from(buffer));
+        }
 
         Ok(msg)
     }
 
-    pub fn authenticate(&mut self, in_data: &[u8], out_data: &mut Vec<u8>) -> Result<(), SrpErr> {
+
+    fn write_msg(&mut self, msg: &mut SrpMessage, out_buffer: &mut Vec<u8>) -> Result<(), SrpErr> {
+        self.state += 1;
+        if msg.seq_num() != self.state {
+            return Err(SrpErr::BadSequence);
+        }
+
+        // Keep messages to calculate future mac values.
+        // Previous MAC values are not included in MAC calculations.
+        let mut v = Vec::new();
+        msg.write_to(&mut v)?;
+
+        if msg.has_mac() {
+            self.mac_buf.push(v[..v.len()-32].to_vec());
+            msg.set_mac(&self.compute_mac()?);
+        } else {
+            println!("got in here");
+            self.mac_buf.push(v[..v.len()].to_vec());
+        }
+
+        msg.write_to(out_buffer)?;
+
+        Ok(())
+    }
+
+    pub fn authenticate(&mut self, in_data: &[u8], out_data: &mut Vec<u8>) -> Result<SrpState, SrpErr> {
         if !self.is_server {
             match self.state {
                 // client-to-server -> SrpInitiate
                 0 => self.client_authenticate_0(in_data, out_data)?,
                 // client-to-server -> SrpAccept
                 1 => self.client_authenticate_1(in_data, out_data)?,
-                3 => self.client_authenticate_2(in_data, out_data)?,
+                // client verifies server
+                3 => {
+                    self.client_authenticate_2(in_data, out_data)?;
+                    return Ok(SrpState::Success)
+                },
                 _ => return Err(SrpErr::BadSequence)
             }
         } else {
@@ -98,11 +128,14 @@ impl Srp<'_> {
                 // server-to-client -> SrpOffer
                 0 => self.server_authenticate_0(in_data, out_data)?,
                 // server-to-client -> SrpConfirm
-                2 => self.server_authenticate_1(in_data, out_data)?,
+                2 => {
+                    self.server_authenticate_1(in_data, out_data)?;
+                    return Ok(SrpState::Success)
+                },
                 _ => return Err(SrpErr::BadSequence)
             }
         }
-        Ok(())
+        Ok(SrpState::Continue)
         //TODO match state
     }
 
@@ -165,13 +198,24 @@ impl Srp<'_> {
                 let user_proof = verifier.get_proof();
                 self.verifier = Some(verifier);
 
-                //TODO! mac
-                /*let mut hmac = Hmac::<Sha256>::new_varkey(&private_key).unwrap();
-                hmac.input(&self.get_mac_data()
-                    .map_err(|_| SrpErr::Internal("MAC can't be calculated".to_owned()))?);*/
+                /*--------------------------------------------------------------------------------*/
+                // get_key() and verify_server() both consume verifier, but need to call both for MAC
+                self.a = a.to_vec();
+                let client = SrpClient::<Sha256>::new(&a, &G_2048);
+                let verifier = client.process_reply(
+                    private_key.as_ref(),
+                    &offer.B.1,
+                    &offer.s.1,
+                    username.as_bytes()
+                ).unwrap();
+                let key = verifier.get_key();
+
+                self.priv_key.clone_from_slice(&key);
+                /*--------------------------------------------------------------------------------*/
 
                 let payload = SrpAccept {
-                    M: (user_proof.len() as u16, user_proof.to_vec())
+                    M: (user_proof.len() as u16, user_proof.to_vec()),
+                    mac: [0u8;32].to_vec()
                 };
                 let header = SrpHeader::new(SRP_ACCEPT_MSG_ID, true, payload.size());
 
@@ -236,6 +280,7 @@ impl Srp<'_> {
                 };
 
                 let server = SrpServer::<Sha256>::new(&user, &self.a, &b, &G_2048).unwrap();
+                self.priv_key.clone_from_slice(&server.get_key());
 
                 let b_pub = server.get_b_pub();
                 self.server = Some(server);
@@ -273,9 +318,10 @@ impl Srp<'_> {
 
                 let payload = SrpConfirm {
                     HAMK: (HAMK.len() as u16, HAMK.to_vec()),
-                    mac: vec![0u8;4]  //FIXME
+                    mac: [0u8;32].to_vec()
                 };
-                let header = SrpHeader::new(SRP_CONFIRM_MSG_ID, false, payload.size());
+
+                let header = SrpHeader::new(SRP_CONFIRM_MSG_ID, true, payload.size());
 
                 let mut out_msg = SrpMessage::Confirm(
                     header,
@@ -291,25 +337,40 @@ impl Srp<'_> {
         Ok(())
     }
 
-    fn write_msg(&mut self, msg: &mut SrpMessage, out_buffer: &mut Vec<u8>) -> Result<(), SrpErr> {
-        self.state += 1;
-        if msg.seq_num() != self.state {
-            return Err(SrpErr::BadSequence);
+    fn compute_mac(&self) -> Result<Vec<u8>, SrpErr> {
+        let mut hmac: Hmac<Sha256> = Hmac::new_varkey(&self.priv_key).unwrap();
+        hmac.input(&self.get_mac_data()
+            .map_err(|_| SrpErr::Internal("MAC can't be calculated".to_owned()))?);
+        Ok(hmac.result().code().to_vec())
+    }
+
+    // Return previous messages without their MACs.
+    fn get_mac_data(&self) -> Result<Vec<u8>, SrpErr> {
+        let mut result = Vec::new();
+
+        for message in &self.mac_buf {
+            result.write(message.as_slice())?;
         }
 
-        // Keep messages to calculate future mac values.
-        // Previous MAC values are not included in MAC calculations.
-        let mut v = Vec::new();
-        msg.write_to(&mut v)?;
-        self.mac_buf.push(v);
+        Ok(result)
+    }
 
-        //TODO
-        /*if msg.has_mac() {
-            msg.set_mac(&self.compute_mac()?);  //FIXME return Result instead of ()?
-        }*/
+    fn validate_mac(&self, msg: &SrpMessage) -> Result<(), SrpErr> {
+        if msg.has_mac() {
+            let mut hmac = Hmac::<Sha256>::new_varkey(&self.priv_key)?;
+            hmac.input(&self.get_mac_data()
+                .map_err(|_| SrpErr::Internal("MAC can't be calculated".to_owned()))?);
 
-        msg.write_to(out_buffer)?;
-
-        Ok(())
+            if let Some(mac) = msg.mac() {
+                hmac.verify(mac).map_err(|_| SrpErr::InvalidMac)
+            } else {
+                Err(SrpErr::Internal(
+                    "Msg should have a MAC but we can't get it".to_owned(),
+                ))
+            }
+        } else {
+            // No mac in the message => Nothing to verify
+            Ok(())
+        }
     }
 }

@@ -1,5 +1,5 @@
 pub const SRP_FLAG_MAC: u16 = 0x01;
-pub const SRP_SIGNATURE: u32 = 0x00505253;
+pub const SRP_SIGNATURE: u32 = 0x505253;
 
 pub const SRP_INITIATE_MSG_ID: u8 = 0x01;
 pub const SRP_OFFER_MSG_ID: u8 = 0x02;

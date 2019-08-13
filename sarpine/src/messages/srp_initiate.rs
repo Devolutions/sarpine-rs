@@ -27,7 +27,7 @@ impl Message for SrpInitiate {
         let reserved = reader.read_u32::<LittleEndian>()?;
 
         let username_len = reader.read_u16::<LittleEndian>()?;
-        let mut username_buf = vec![0u8; username_len as usize];
+        let mut username_buf = vec![0u8; username_len as usize + 1];
         reader.read_exact(&mut username_buf)?;
 
         let a_pub_size = reader.read_u16::<LittleEndian>()?;
@@ -49,6 +49,7 @@ impl Message for SrpInitiate {
         writer.write_u32::<LittleEndian>(self.reserved)?;
         writer.write_u16::<LittleEndian>(self.username.0)?;
         writer.write_all(&self.username.1)?;
+        writer.write_u8(0)?;
         writer.write_u16::<LittleEndian>(self.a_pub.0)?;
         writer.write_all(&self.a_pub.1)?;
         Ok(())

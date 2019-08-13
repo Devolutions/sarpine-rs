@@ -1,5 +1,6 @@
 use std::io::Error;
 use std::fmt;
+use hmac::crypto_mac::InvalidKeyLength;
 
 #[derive(Debug)]
 pub enum SrpErr {
@@ -10,6 +11,9 @@ pub enum SrpErr {
     UnknownMsgType,
     Proto(String),
     InvalidSignature,
+    Internal(String),
+    InvalidMac,
+    InvalidKeySize
 }
 
 impl fmt::Display for SrpErr {
@@ -22,6 +26,9 @@ impl fmt::Display for SrpErr {
             &SrpErr::UnknownMsgType => write!(f, "Unknown message type"),
             &SrpErr::Proto(ref desc) => write!(f, "Protocol error: {}", desc),
             &SrpErr::InvalidSignature => write!(f, "Signature error"),
+            &SrpErr::Internal(ref desc) => write!(f, "Internal error: {}", desc),
+            &SrpErr::InvalidMac => write!(f, "MAC error"),
+            &SrpErr::InvalidKeySize => write!(f, "Key Size error"),
         }
     }
 }
@@ -36,6 +43,9 @@ impl std::error::Error for SrpErr {
             SrpErr::UnknownMsgType => "Unknown message type",
             SrpErr::Proto(_) => "Protocol error",
             SrpErr::InvalidSignature => "Packet signature is invalid",
+            SrpErr::Internal(_) => "Internal error",
+            SrpErr::InvalidMac => "Message authentication code is invalid",
+            SrpErr::InvalidKeySize => "Key size must be 256, 512 or 1024",
         }
     }
 }
@@ -43,5 +53,11 @@ impl std::error::Error for SrpErr {
 impl From<Error> for SrpErr {
     fn from(error: Error) -> SrpErr {
         SrpErr::Io(error)
+    }
+}
+
+impl From<InvalidKeyLength> for SrpErr {
+    fn from(_error: InvalidKeyLength) -> SrpErr {
+        SrpErr::InvalidKeySize
     }
 }

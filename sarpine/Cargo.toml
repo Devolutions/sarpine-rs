@@ -15,8 +15,8 @@ crate-type = ["cdylib", "staticlib", "lib"]
 [dependencies]
 cfg-if = "0.1"
 rand = { version = "0.7.0", features = ["wasm-bindgen"] }
-hmac = "0.6"
-sha2 = "0.8.0"
+hmac = "0.7"
+sha2 = "0.8"
 srp = { git = "https://github.com/Devolutions/PAKEs", branch = "rfc5054_compat" }
 console_error_panic_hook = "0.1.6"
 num = "0.2.0"

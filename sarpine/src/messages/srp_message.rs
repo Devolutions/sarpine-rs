@@ -43,6 +43,24 @@ impl SrpMessage {
             SrpMessage::Confirm(hdr, _) => hdr.msg_type(),
         }
     }
+
+    pub fn mac(&self) -> Option<&[u8]> {
+        match self {
+            SrpMessage::Initiate(_, _) => None,
+            SrpMessage::Offer(_, _) => None,
+            SrpMessage::Accept(_, accept) => Some(accept.mac()),
+            SrpMessage::Confirm(_, confirm) => Some(confirm.mac()),
+        }
+    }
+
+    pub fn set_mac(&mut self, mac: &[u8]) -> Result<(), SrpErr> {
+        match self {
+            SrpMessage::Initiate(_, _) => Err(SrpErr::Proto("No mac on an initiate message".to_owned())),
+            SrpMessage::Offer(_, _) => Err(SrpErr::Proto("No mac on an offer message".to_owned())),
+            SrpMessage::Accept(_, ref mut accept) => Ok(accept.set_mac(mac)),
+            SrpMessage::Confirm(_, ref mut confirm) => Ok(confirm.set_mac(mac)),
+        }
+    }
 }
 
 impl Message for SrpMessage {
